@@ -3,12 +3,20 @@ pragma solidity ^0.8.18;
 
 import { VRFConsumerBaseV2 } from "@chainlink/contracts/src/v0.8/VRFConsumerBaseV2.sol";
 import { VRFCoordinatorV2Interface } from "@chainlink/contracts/src/v0.8/interfaces/VRFCoordinatorV2Interface.sol";
+import { AutomationCompatibleInterface } from "@chainlink/contracts/src/v0.8/AutomationCompatible.sol";
 
 // Errors
 error Raffle__NotEnoughETH();
 error NewTransferFailed();
+error Raffle__CannotEnterWhenRaffleIsCalculating();
 
-contract Raffle is VRFConsumerBaseV2 {
+contract Raffle is VRFConsumerBaseV2, AutomationCompatibleInterface {
+    // Type Declarations
+    enum RaffleState {
+        OPEN,
+        CALCULATING
+    }
+
     // State Variables
     uint256 private immutable i_entranceFee;
     address payable[] private s_players;
@@ -21,6 +29,7 @@ contract Raffle is VRFConsumerBaseV2 {
 
     // Lottery Variables
     address private s_recentWinner;
+    RaffleState private s_raffleState;
 
     // Events
     event RaffleEnter(address indexed player);
@@ -39,6 +48,7 @@ contract Raffle is VRFConsumerBaseV2 {
         i_gasLane = gasLane;
         i_subscriptionId = subscriptionId;
         i_callbackGasLimit = callbackGasLimit;
+        s_raffleState = RaffleState.OPEN;
     }
 
     // Functions
@@ -47,6 +57,12 @@ contract Raffle is VRFConsumerBaseV2 {
         if (msg.value < i_entranceFee) {
             revert Raffle__NotEnoughETH();
         }
+
+        // If lottery is calculating, revert with error
+        if (s_raffleState == RaffleState.CALCULATING) {
+            revert Raffle__CannotEnterWhenRaffleIsCalculating();
+        }
+
         // When we update an array or mapping, always make sure to emit an event
         s_players.push(payable(msg.sender));
         // Good naming convention for events: function reversed
@@ -54,6 +70,8 @@ contract Raffle is VRFConsumerBaseV2 {
     }
 
     function requestRandomWinner() external {
+        s_raffleState = RaffleState.CALCULATING;
+
         // Requesting random number with Chainlink VRF
         uint256 requestId = i_vrfCoordinator.requestRandomWords(
             i_gasLane,
@@ -76,9 +94,11 @@ contract Raffle is VRFConsumerBaseV2 {
         s_recentWinner = recentWinner;
 
         // Send the money
-        (bool success, ) = recentWinner.call{value: address(this).balance}("");
+        (bool success, ) = recentWinner.call{ value: address(this).balance }(
+            ""
+        );
         if (!success) {
-          revert NewTransferFailed();
+            revert NewTransferFailed();
         }
 
         emit WinnerPicked(recentWinner);
