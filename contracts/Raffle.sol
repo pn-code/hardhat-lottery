@@ -172,4 +172,8 @@ contract Raffle is VRFConsumerBaseV2, AutomationCompatibleInterface {
     function getRaffleState() public view returns (RaffleState) {
         return s_raffleState;
     }
+
+    function getInterval() public view returns (uint256) {
+        return i_interval;
+    }
 }
