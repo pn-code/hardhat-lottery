@@ -7,13 +7,12 @@ import { AutomationCompatibleInterface } from "@chainlink/contracts/src/v0.8/Aut
 
 // Errors
 error Raffle__NotEnoughETH();
-error NewTransferFailed();
+error Raffle__TransferFailed();
 error Raffle__CannotEnterWhenRaffleIsCalculating();
-error Raffle__UpkeepIsNotNeeded(
+error Raffle__UpkeepNotNeeded(
     uint256 currentBalance,
     uint256 numPlayers,
-    uint256 raffleState,
-    uint256 timeTillNextWinner
+    uint256 raffleState
 );
 
 /**
@@ -110,11 +109,10 @@ contract Raffle is VRFConsumerBaseV2, AutomationCompatibleInterface {
     function performUpkeep(bytes calldata /* performData */) external override {
         (bool upkeepNeeded, ) = checkUpkeep("");
         if (!upkeepNeeded) {
-            revert Raffle__UpkeepIsNotNeeded(
+            revert Raffle__UpkeepNotNeeded(
                 address(this).balance,
                 s_players.length,
-                uint256(RaffleState.CALCULATING),
-                (i_interval - (block.timestamp - s_lastTimeStamp))
+                uint256(RaffleState.CALCULATING)
             );
         }
 
@@ -150,7 +148,7 @@ contract Raffle is VRFConsumerBaseV2, AutomationCompatibleInterface {
             ""
         );
         if (!success) {
-            revert NewTransferFailed();
+            revert Raffle__TransferFailed();
         }
 
         emit WinnerPicked(recentWinner);
